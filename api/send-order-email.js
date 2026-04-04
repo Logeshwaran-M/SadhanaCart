@@ -18,6 +18,9 @@ export default async function handler(req, res) {
   try {
     const { userEmail, userName, orderId, status, orderItems } = req.body;
 
+      console.log("EMAIL:", process.env.EMAIL_USER);
+  console.log("PASS:", process.env.EMAIL_PASS ? "EXISTS" : "MISSING");
+
     if (!userEmail || !orderId) {
       return res.status(400).json({ error: "Missing required fields" });
     }
