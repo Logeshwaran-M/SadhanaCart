@@ -544,7 +544,7 @@ const processedOrders = React.useRef(new Set());
 const API_URL =
   window.location.hostname === "localhost"
     ? "http://localhost:3000"
-    : "sadhana-cart-two.vercel.app";
+    : "https://sadhana-cart-pa1w.vercel.app/";
 const sendEmailFromAPI = async ({
   userEmail,
   userName,
