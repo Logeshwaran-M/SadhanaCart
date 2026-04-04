@@ -36,6 +36,7 @@ const Orders = () => {
   const [viewingOrder, setViewingOrder] = useState(null);
   const [showViewModal, setShowViewModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [lastUpdated, setLastUpdated] = useState(null);
   const [orderStats, setOrderStats] = useState({
     all: 0,
     pending: 0,
@@ -638,6 +639,7 @@ useEffect(() => {
   
     setOrders(uniqueList);
     setOrderStats(calculateStats(uniqueList));
+    setLastUpdated(new Date());
 
     // 2. SMART EMAIL TRIGGER (Only fire for actual changes)
     snapshot.docChanges().forEach(async (change) => {
@@ -688,32 +690,28 @@ if (change.type === "modified") {
 }, [calculateStats]);
 
 useEffect(() => {
-  const fetchUsers = async () => {
-    const usersMap = {};
+  if (orders.length === 0) return;
 
-    for (const order of orders) {
-      const userId = order.customerId || order.userId;
+  const uniqueUserIds = [
+    ...new Set(
+      orders.map(o => o.customerId || o.userId).filter(Boolean)
+    )
+  ];
 
-      if (!userId || usersMap[userId]) continue;
+  const unsubscribers = uniqueUserIds.map(userId => {
+    const userRef = doc(db, "users", userId);
 
-      try {
-        const userRef = doc(db, "users", userId);
-        const userSnap = await getDoc(userRef);
-
-        if (userSnap.exists()) {
-          usersMap[userId] = userSnap.data();
-        }
-      } catch (err) {
-        console.error("User fetch error:", err);
+    return onSnapshot(userRef, (snap) => {
+      if (snap.exists()) {
+        setUserDetails(prev => ({
+          ...prev,
+          [userId]: snap.data()
+        }));
       }
-    }
+    });
+  });
 
-    setUserDetails(usersMap);
-  };
-
-  if (orders.length > 0) {
-    fetchUsers();
-  }
+  return () => unsubscribers.forEach(unsub => unsub());
 }, [orders]);
 
 const fetchWalletBalance = async (userId) => {
@@ -1024,7 +1022,9 @@ const fetchWalletBalance = async (userId) => {
                             </div>
                             <div>
                               <div className="text-white font-medium group-hover:text-blue-300 transition-colors">
-                                {order.customerName}
+                             {userDetails[order.customerId || order.userId]?.name 
+  || order.customerName 
+  || "Unknown"}
                               </div>
                               <div className="text-sm text-gray-400">{order.customerEmail}</div>
                             </div>
