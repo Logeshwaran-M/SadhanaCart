@@ -545,6 +545,8 @@ const API_URL =
   window.location.hostname === "localhost"
     ? "http://localhost:3000"
     : "https://sadhana-cart-pa1w.vercel.app/";
+
+   
 const sendEmailFromAPI = async ({
   userEmail,
   userName,
@@ -633,7 +635,7 @@ useEffect(() => {
       return timeB - timeA;
     });
 
-    // Update UI State (This fixes the "2 times" duplicate issue)
+  
     setOrders(uniqueList);
     setOrderStats(calculateStats(uniqueList));
 
