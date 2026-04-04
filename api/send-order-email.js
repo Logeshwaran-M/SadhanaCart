@@ -57,66 +57,92 @@ export default async function handler(req, res) {
     // ✅ PRODUCTS HTML
     const items = Array.isArray(orderItems) ? orderItems : [];
 
-    const productHTML = items.map(item => `
-      <tr>
-        <td style="padding:10px;">
-          <img src="${item.image || 'https://via.placeholder.com/60'}"
-            style="width:60px;height:60px;border-radius:6px;" />
-        </td>
-        <td style="padding:10px;">
-          <b>${item.name}</b><br/>
-          Qty: ${item.quantity || 1}
-        </td>
-        <td style="padding:10px;text-align:right;">
-          ₹${Number(item.price || 0).toLocaleString("en-IN")}
-        </td>
-      </tr>
-    `).join("");
+   const total = items.reduce((sum, item) => {
+  return sum + (item.price || 0) * (item.quantity || 1);
+}, 0);
 
-    // ✅ EMAIL TEMPLATE
-    const html = `
-    <div style="font-family:Arial;background:#f4f6f8;padding:20px;">
-      <div style="max-width:650px;margin:auto;background:#fff;border-radius:10px;overflow:hidden;">
+const productHTML = items.map((item, index) => `
+  <tr>
+    <td style="padding:10px;border:1px solid #ddd;text-align:center;">
+      ${index + 1}
+    </td>
+    <td style="padding:10px;border:1px solid #ddd;">
+      ${item.name}
+    </td>
+    <td style="padding:10px;border:1px solid #ddd;text-align:center;">
+      ${item.quantity || 1}
+    </td>
+    <td style="padding:10px;border:1px solid #ddd;text-align:right;">
+      ₹${Number(item.price || 0).toLocaleString("en-IN")}
+    </td>
+    <td style="padding:10px;border:1px solid #ddd;text-align:right;">
+      ₹${Number((item.price || 0) * (item.quantity || 1)).toLocaleString("en-IN")}
+    </td>
+  </tr>
+`).join("");
 
-        <div style="background:#111827;color:white;padding:20px;text-align:center;">
-          <h2>🛍️ Order Update</h2>
-        </div>
+const html = `
+<div style="font-family:Arial;background:#f4f6f8;padding:20px;">
+  <div style="max-width:700px;margin:auto;background:#fff;border-radius:10px;overflow:hidden;">
 
-        <div style="padding:25px;">
-          <p>Hi <b>${userName || "Customer"}</b>,</p>
-
-          <p>Your order <b>#${orderId}</b> is now 
-            <span style="color:${statusColor};font-weight:bold;">
-              ${status}
-            </span>
-          </p>
-
-          <h3>🧾 Order Items</h3>
-
-          <table width="100%">
-            ${productHTML}
-          </table>
-
-          <div style="text-align:center;margin:20px 0;">
-            <a href="#" style="background:#10b981;color:white;padding:10px 20px;border-radius:5px;text-decoration:none;">
-              Track Order
-            </a>
-          </div>
-
-          <p>Thank you for shopping ❤️</p>
-        </div>
-
-        <div style="background:#f3f4f6;padding:10px;text-align:center;font-size:12px;">
-          © ${new Date().getFullYear()} Your Store
-        </div>
-
-      </div>
+    <!-- HEADER -->
+    <div style="background:#111827;color:white;padding:20px;text-align:center;">
+      <h2 style="margin:0;">🛍️ Order Update</h2>
     </div>
-    `;
+
+    <!-- BODY -->
+    <div style="padding:25px;">
+      <p>Hi <b>${userName || "Customer"}</b>,</p>
+
+      <p>
+        Your order <b>#${orderId}</b> is now 
+        <span style="color:${statusColor};font-weight:bold;">
+          ${status}
+        </span>
+      </p>
+
+      <h3 style="margin-top:20px;">🧾 Order Summary</h3>
+
+      <!-- TABLE -->
+      <table width="100%" style="border-collapse:collapse;margin-top:10px;">
+        <thead>
+          <tr style="background:#f3f4f6;">
+            <th style="padding:10px;border:1px solid #ddd;">#</th>
+            <th style="padding:10px;border:1px solid #ddd;">Item</th>
+            <th style="padding:10px;border:1px solid #ddd;">Qty</th>
+            <th style="padding:10px;border:1px solid #ddd;">Price</th>
+            <th style="padding:10px;border:1px solid #ddd;">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${productHTML}
+        </tbody>
+      </table>
+
+      <!-- GRAND TOTAL -->
+      <div style="margin-top:15px;text-align:right;">
+        <h3 style="margin:0;">
+          Grand Total: ₹${total.toLocaleString("en-IN")}
+        </h3>
+      </div>
+
+      <!-- BUTTON -->
+
+      <p>Thank you for shopping with us ❤️</p>
+    </div>
+
+    <!-- FOOTER -->
+    <div style="background:#f3f4f6;padding:12px;text-align:center;font-size:12px;color:#555;">
+      © ${new Date().getFullYear()} SadhanaCart | All Rights Reserved
+    </div>
+
+  </div>
+</div>
+`;
 
     // ✅ SEND EMAIL
     await transporter.sendMail({
-      from: `"Your Store" <${process.env.EMAIL_USER}>`,
+      from: `"SadhanaCart" <${process.env.EMAIL_USER}>`,
       to: userEmail,
       subject,
       html,
