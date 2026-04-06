@@ -656,6 +656,7 @@ useEffect(() => {
         if (orderTime > appStartTime && !processedOrders.current.has(orderId)) {
           processedOrders.current.add(orderId);
           await handleEmailSend(change.doc.ref.parent.parent, orderId, "Confirmed", orderData);
+            await fetchOrders();
         }
       }
 
@@ -679,6 +680,7 @@ if (change.type === "modified") {
         newStatus,
         orderData
       );
+         await fetchOrders();
     }
   }
 }
