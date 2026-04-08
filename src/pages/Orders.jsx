@@ -36,7 +36,6 @@ const Orders = () => {
   const [viewingOrder, setViewingOrder] = useState(null);
   const [showViewModal, setShowViewModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [lastUpdated, setLastUpdated] = useState(null);
   const [orderStats, setOrderStats] = useState({
     all: 0,
     pending: 0,
@@ -61,7 +60,6 @@ const Orders = () => {
   const [bulkActions, setBulkActions] = useState([]);
   const [selectedOrders, setSelectedOrders] = useState(new Set());
   const [walletBalances, setWalletBalances] = useState({});
-  const [userDetails, setUserDetails] = useState({});
 
   // Memoized order statistics calculation
 const calculateStats = useCallback((ordersList) => {
@@ -230,12 +228,11 @@ const formatProductDisplay = (order) => {
   };
 
   const handleEdit = (order) => {
-    const user = userDetails[order.customerId] || {};
     setEditingOrder(order);
     setFormData({
       customerName: order.customerName || '',
-      customerEmail: order.customerEmail || user.email || '',
-      customerPhone: order.customerPhone || user.contactNo || '',
+      customerEmail: order.customerEmail || '',
+      customerPhone: order.customerPhone || '',
       amount: calculateOrderTotal(order),
       paymentStatus: order.paymentStatus || 'pending',
       status: order.status || 'pending',
@@ -542,73 +539,40 @@ const handleStatusSelectChange = async (orderId, newStatus) => {
 // Add this ref at the very top of your Orders component (after your states)
 const processedOrders = React.useRef(new Set());
 
-const API_URL =
-  window.location.hostname === "localhost"
-    ? "http://localhost:3000"
-    : "https://sadhana-cart-pa1w.vercel.app/";
 
-   
-const sendEmailFromAPI = async ({
-  userEmail,
-  userName,
-  orderId,
-  status,
-  orderItems   // 👈 change here
-}) => {
+const handleEmailSend = async (userRef, orderId, status, orderData) => {
   try {
-    await fetch(`${API_URL}/api/send-order-email`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        userEmail,
-        userName,
-        orderId,
-        status,
-        orderItems   // 👈 send full items
-      }),
-    });
-  } catch (err) {
-    console.error("Email API error:", err);
-  }
-};
+    if (!userRef) return;
+    
+    // Get the User document to find the customer's email
+    const userSnap = await getDoc(userRef);
+    if (userSnap.exists()) {
+      const userData = userSnap.data();
+      
+      if (userData.email) {
+        // Format products list into a string (e.g., "iPhone 15 (x1), AirPods (x2)")
+        const items = orderData.products || orderData.items || [];
+        const formattedProducts = items.length > 0 
+          ? items.map(i => `${i.name || i.productName} (x${i.quantity || 1})`).join(", ")
+          : "No items listed";
 
-const handleEmailSend = async (userDocRef, orderId, status, orderData) => {
-  try {
-    // 1️⃣ Get user data
-    const userSnap = await getDoc(userDocRef);
-
-    if (!userSnap.exists()) {
-      console.error("User not found");
-      return;
+        // Call your existing EmailJS utility
+        await sendOrderEmail({
+          userEmail: userData.email,
+          userName: userData.name || "Customer",
+          _id: orderId,
+          products: formattedProducts 
+        }, status);
+        
+        console.log(`📧 Email sent for order ${orderId} with status: ${status}`);
+      }
     }
-
-    const user = userSnap.data();
-
-    // 2️⃣ Format products
-    const formattedItems = (orderData.products || orderData.items || []).map(item => ({
-      name: item.name || item.productName || "Product",
-      quantity: item.quantity || item.qty || 1,
-      price: item.price || item.sellingPrice || 0,
-      image: item.image || item.thumbnail || item.productImage || "https://via.placeholder.com/60"
-    }));
-
-    // 3️⃣ Call your API
-    await sendEmailFromAPI({
-      userEmail: user.email,
-      userName: user.name || user.displayName || "Customer",
-      orderId,
-      status,
-      orderItems: formattedItems
-    });
-
-    console.log("✅ Email sent:", orderId, status);
-
-  } catch (error) {
-    console.error("❌ Email send failed:", error);
+  } catch (err) {
+    console.error("❌ Email trigger error:", err);
   }
 };
+
+
 // Ensure this ref is defined at the top of your component
 useEffect(() => {
   const ordersRef = collectionGroup(db, "orders");
@@ -636,10 +600,9 @@ useEffect(() => {
       return timeB - timeA;
     });
 
-  
+    // Update UI State (This fixes the "2 times" duplicate issue)
     setOrders(uniqueList);
     setOrderStats(calculateStats(uniqueList));
-    setLastUpdated(new Date());
 
     // 2. SMART EMAIL TRIGGER (Only fire for actual changes)
     snapshot.docChanges().forEach(async (change) => {
@@ -656,7 +619,6 @@ useEffect(() => {
         if (orderTime > appStartTime && !processedOrders.current.has(orderId)) {
           processedOrders.current.add(orderId);
           await handleEmailSend(change.doc.ref.parent.parent, orderId, "Confirmed", orderData);
-            await fetchOrders();
         }
       }
 
@@ -680,7 +642,6 @@ if (change.type === "modified") {
         newStatus,
         orderData
       );
-         await fetchOrders();
     }
   }
 }
@@ -690,31 +651,6 @@ if (change.type === "modified") {
 
   return () => unsubscribe();
 }, [calculateStats]);
-
-useEffect(() => {
-  if (orders.length === 0) return;
-
-  const uniqueUserIds = [
-    ...new Set(
-      orders.map(o => o.customerId || o.userId).filter(Boolean)
-    )
-  ];
-
-  const unsubscribers = uniqueUserIds.map(userId => {
-    const userRef = doc(db, "users", userId);
-
-    return onSnapshot(userRef, (snap) => {
-      if (snap.exists()) {
-        setUserDetails(prev => ({
-          ...prev,
-          [userId]: snap.data()
-        }));
-      }
-    });
-  });
-
-  return () => unsubscribers.forEach(unsub => unsub());
-}, [orders]);
 
 const fetchWalletBalance = async (userId) => {
   try {
@@ -1024,9 +960,7 @@ const fetchWalletBalance = async (userId) => {
                             </div>
                             <div>
                               <div className="text-white font-medium group-hover:text-blue-300 transition-colors">
-                             {userDetails[order.customerId || order.userId]?.name 
-  || order.customerName 
-  || "Unknown"}
+                                {order.customerName}
                               </div>
                               <div className="text-sm text-gray-400">{order.customerEmail}</div>
                             </div>
@@ -1331,7 +1265,7 @@ className="bg-gray-700 text-white text-xs px-2 py-1 rounded border border-gray-6
                 <input
                   type="tel"
                   disabled={!!editingOrder}
-                  value={formData.customerPhone}  
+                  value={formData.customerPhone}
                   onChange={(e) => setFormData({...formData, customerPhone: e.target.value})}
                   className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   required
@@ -1453,11 +1387,11 @@ className="bg-gray-700 text-white text-xs px-2 py-1 rounded border border-gray-6
                   </div>
                   <div>
                     <label className="text-sm text-gray-400">Email</label>
-                    <p className="text-white font-medium">  {userDetails[viewingOrder.customerId]?.email || viewingOrder.customerEmail || 'N/A'}</p>
+                    <p className="text-white font-medium">{viewingOrder.customerEmail || 'N/A'}</p>
                   </div>
                   <div>
                     <label className="text-sm text-gray-400">Phone</label>
-                    <p className="text-white font-medium"> {userDetails[viewingOrder.customerId]?.contactNo || viewingOrder.customerPhone || 'N/A'}</p>
+                    <p className="text-white font-medium">{viewingOrder.customerPhone || 'N/A'}</p>
                   </div>
                   <div>
                     <label className="text-sm text-gray-400">Customer ID</label>

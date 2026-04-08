@@ -5,7 +5,7 @@
 
 // Use local admin server port 4000 for dev, or relative /api for production
 const IS_DEV = import.meta.env.DEV;
-const SERVER_URL = 'https://sadhanacart-l0ew.onrender.com/send-notification';
+const SERVER_URL = 'https://sadhanacart.onrender.com/send-notification';
 
 /**
  * Sends a notification via the relevant backend (Local Server or Vercel Function)

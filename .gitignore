@@ -27,4 +27,4 @@ dist-ssr
 
 # Firebase service account key
 serviceAccountKey.json
-.env
+
